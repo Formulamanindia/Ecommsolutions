@@ -118,6 +118,48 @@ def meesho_upload_form(firm_gstin, filing_period):
             st.error("Please upload all three required files to run the processing.")
 
 
+# --- Helper function to define Flipkart GST upload flow (based on user request) ---
+def flipkart_gst_upload_form(firm_gstin, filing_period):
+    st.header(f"Flipkart GSTR-1 Upload for {filing_period}")
+    st.info(f"Using Seller's GSTIN: **{firm_gstin}**")
+
+    st.subheader("Download Path")
+    st.markdown("`Flipkart Portal → Report → Tax Reports → Sales report`")
+
+    # Layout for Flipkart GSTIN
+    col_gstin_label, col_gstin_input = st.columns([1, 2])
+    
+    with col_gstin_label:
+        st.markdown("GSTIN of Flipkart:")
+    with col_gstin_input:
+        # This is a constant value for Flipkart's GSTIN (used for B2C/TCS transactions)
+        flipkart_gstin_value = "07AACCF0683K1CU"
+        st.text_input("GSTIN of Flipkart", value=flipkart_gstin_value, disabled=True, label_visibility="collapsed")
+        
+    st.subheader(f"Upload Files: ({filing_period})")
+    
+    # Single file uploader for Sales Report
+    st.file_uploader("Sales Report", type=['xlsx', 'csv'], key="flipkart_sales_report", label_visibility="collapsed")
+    
+    st.markdown("---")
+    
+    # Process button
+    if st.button("Upload", type="primary"):
+        if st.session_state.get('flipkart_sales_report'):
+            st.success(f"File uploaded and ready for processing against Flipkart GSTIN: {flipkart_gstin_value}.")
+            # Mock processing and download
+            gstr_output = pd.DataFrame({
+                'GSTIN': [firm_gstin], 
+                'Month': [filing_period], 
+                'Platform': ['Flipkart'], 
+                'Status': ['Ready for JSON Conversion']
+            })
+            st.dataframe(gstr_output)
+            st.download_button("📥 Download GSTR-1 Ready Excel", data="mock_excel_data", file_name="Flipkart_GSTR1_Output.xlsx")
+        else:
+            st.error("Please upload the Sales Report file.")
+
+
 # ====================================================================
 # --- TAB 1: GST FILING SERVICES (NEW CARD LAYOUT & LOGIC) ---
 # ====================================================================
@@ -161,6 +203,8 @@ with tab1:
         # Display the specific form
         if st.session_state['selected_platform'] == 'Meesho_B2C':
             meesho_upload_form(gstin, period)
+        elif st.session_state['selected_platform'] == 'Flipkart_GST':
+            flipkart_gst_upload_form(gstin, period) # Added the new form here
 
     # B. Show card grid and general uploader if no platform is selected
     else:
@@ -243,7 +287,7 @@ with tab1:
             """, unsafe_allow_html=True)
             if st.button("Import Data", key="flipkart_gst_btn"):
                 st.session_state['selected_platform'] = 'Flipkart_GST'
-                st.info("Flipkart GST specific upload form will appear here soon.")
+                st.rerun() # Rerun to show the new Flipkart GST form
         
         with col7:
             st.markdown("""
