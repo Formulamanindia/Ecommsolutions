@@ -390,8 +390,48 @@ with tab3:
     st.header("↩️ Return & Refund Analysis")
     st.write("This tab will show key metrics on Return Percentage and Top 10 returned SKUs.")
 
+# --- Helper function to read file metadata for dynamic dropdowns ---
+@st.cache_data(show_spinner=False)
+def get_file_metadata(uploaded_file, file_key):
+    """
+    Reads file to get sheet names and columns of the first sheet.
+    Uses st.cache_data to speed up subsequent runs with the same file.
+    """
+    if uploaded_file is None:
+        return {'sheets': ['(Upload File First)'], 'columns': ['(Upload File First)']}
+    
+    # Reset file pointer to the beginning for fresh reading
+    uploaded_file.seek(0)
+    
+    # Check file type
+    if uploaded_file.name.endswith('.xlsx'):
+        try:
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_names = xls.sheet_names
+            
+            # Read the first sheet to get column names
+            df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0])
+            columns = ['(Select Column)'] + df.columns.tolist()
+
+            return {'sheets': sheet_names, 'columns': columns, 'default_sheet': sheet_names[0]}
+        except Exception as e:
+            st.error(f"Error reading Excel sheets for {uploaded_file.name}: {e}")
+            return {'sheets': ['(Error Reading Sheets)'], 'columns': ['(Error Reading Sheets)']}
+    
+    elif uploaded_file.name.endswith('.csv'):
+        try:
+            df = pd.read_csv(uploaded_file)
+            columns = ['(Select Column)'] + df.columns.tolist()
+            return {'sheets': ['Single Sheet'], 'columns': columns, 'default_sheet': 'Single Sheet'}
+        except Exception as e:
+            st.error(f"Error reading CSV file {uploaded_file.name}: {e}")
+            return {'sheets': ['(Error Reading CSV)'], 'columns': ['(Error Reading CSV)']}
+
+    else:
+        return {'sheets': ['Unsupported File'], 'columns': ['Unsupported File']}
+
 # ====================================================================
-# --- TAB 4: PAYMENT RECONCILIATION (Logic omitted for brevity) ---
+# --- TAB 4: PAYMENT RECONCILIATION ---
 # ====================================================================
 with tab4:
     st.header("🤝 Payment Reconciliation")
@@ -399,55 +439,112 @@ with tab4:
     
     tab_amz, tab_meesho, tab_flipkart = st.tabs(["Amazon", "Meesho", "Flipkart"])
     
+    def render_mapping_controls(platform, report_type, needs_payment_col=False, expanded=False):
+        
+        # Determine keys for file uploader and state variables
+        file_key = f"{platform}_{report_type.lower()}_file"
+        sheet_key = f"{platform}_{report_type.lower()}_sheet"
+        order_col_key = f"{platform}_{report_type.lower()}_order_col"
+        payment_col_key = f"{platform}_{report_type.lower()}_payment_col"
+        
+        # Set up expander title
+        title = f"{report_type} Report: Upload and Define Columns"
+        
+        with st.expander(title, expanded=expanded):
+            
+            # 1. File Uploader
+            uploaded_file = st.file_uploader(f"Upload {platform} **{report_type}** Report", key=file_key, type=['xlsx', 'csv'])
+
+            metadata = get_file_metadata(uploaded_file, file_key)
+
+            # Initialize states if not present
+            if sheet_key not in st.session_state: st.session_state[sheet_key] = metadata['sheets'][0] if metadata['sheets'][0] != '(Upload File First)' else '(Select Sheet)'
+            if order_col_key not in st.session_state: st.session_state[order_col_key] = metadata['columns'][0]
+            if payment_col_key not in st.session_state: st.session_state[payment_col_key] = metadata['columns'][0]
+            
+            
+            if uploaded_file and metadata['columns'][0] != '(Upload File First)':
+                
+                # 2. Dynamic Sheet Selection (only for Excel files)
+                if uploaded_file.name.endswith('.xlsx'):
+                    try:
+                        # Use the default sheet name from metadata to select initial index
+                        default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata else 0
+                        st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=default_index)
+                    except ValueError:
+                         # Fallback if default sheet name isn't in the list (shouldn't happen with correct logic)
+                        st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=0)
+                else:
+                    st.markdown(f"**Sheet Name:** *({metadata['sheets'][0]})*")
+
+                # 3. Dynamic Column Selection
+                col_order, col_payment = st.columns(2 if needs_payment_col else 1)
+                
+                # Find index for 'Order ID' placeholder
+                default_order_idx = metadata['columns'].index(st.session_state[order_col_key]) if st.session_state[order_col_key] in metadata['columns'] else 0
+                
+                with col_order:
+                    st.selectbox("Order ID Column", metadata['columns'], key=order_col_key, index=default_order_idx)
+                
+                if needs_payment_col:
+                    # Find index for 'Payment Col' placeholder
+                    default_payment_idx = metadata['columns'].index(st.session_state[payment_col_key]) if st.session_state[payment_col_key] in metadata['columns'] else 0
+                    with col_payment:
+                        st.selectbox("Payment Received Column", metadata['columns'], key=payment_col_key, index=default_payment_idx)
+            else:
+                st.info("Upload an Excel or CSV file above to see sheet and column options.")
+
+
     def reconciliation_uploader(platform):
         st.subheader(f"{platform} Reconciliation Files")
         
-        # 1. Sales Data Upload and Mapping
-        with st.expander("1. Upload Sales Data and Define Columns", expanded=True):
-            st.file_uploader(f"Upload {platform} **Sales Report**", key=f"{platform}_sales", type=['xlsx', 'csv'])
-            st.text_input("Excel Sheet Name (e.g., 'Sheet1')", key=f"{platform}_sales_sheet", value="Sheet1")
-            st.text_input("Order ID Column Name (e.g., 'Order_ID')", key=f"{platform}_sales_order_col", placeholder="e.g., Order_ID")
+        # 1. Sales Data (Needs Order ID column only)
+        render_mapping_controls(platform, "Sales", needs_payment_col=False, expanded=True)
 
-        # 2. Previous Payments Upload and Mapping
-        with st.expander("2. Upload Previous Payments and Define Columns", expanded=False):
-            st.file_uploader(f"Upload {platform} **Settlement/Prev Payments**", key=f"{platform}_prev", type=['xlsx', 'csv'])
-            st.text_input("Excel Sheet Name (e.g., 'Settlements')", key=f"{platform}_prev_sheet", value="Settlements")
-            col_prev_order, col_prev_payment = st.columns(2)
-            with col_prev_order:
-                st.text_input("Order ID Column Name", key=f"{platform}_prev_order_col", placeholder="e.g., Transaction ID")
-            with col_prev_payment:
-                st.text_input("Payment Received Column Name", key=f"{platform}_prev_payment_col", placeholder="e.g., Settlement Amount")
+        # 2. Previous Payments (Needs Order ID and Payment Received columns)
+        render_mapping_controls(platform, "Prev_Payments", needs_payment_col=True, expanded=False)
 
-        # 3. Upcoming Payments Upload and Mapping
-        with st.expander("3. Upload Upcoming Payments and Define Columns", expanded=False):
-            st.file_uploader(f"Upload {platform} **Upcoming Payments**", key=f"{platform}_upcoming", type=['xlsx', 'csv'])
-            st.text_input("Excel Sheet Name (e.g., 'Upcoming')", key=f"{platform}_upcoming_sheet", value="Upcoming")
-            col_up_order, col_up_payment = st.columns(2)
-            with col_up_order:
-                st.text_input("Order ID Column Name", key=f"{platform}_upcoming_order_col", placeholder="e.g., Order Reference")
-            with col_up_payment:
-                st.text_input("Payment Received Column Name", key=f"{platform}_upcoming_payment_col", placeholder="e.g., Estimated Payable")
+        # 3. Upcoming Payments (Needs Order ID and Payment Received columns)
+        render_mapping_controls(platform, "Upcoming_Payments", needs_payment_col=True, expanded=False)
         
         st.divider()
         
-        # Run button logic remains the same (mocked)
+        # --- Run Logic ---
+        # NOTE: The keys are structured as f"{platform}_{report_type.lower()}_[sheet/order_col/payment_col]"
+        
         if st.button(f"Run {platform} Reconciliation", type="primary", key=f"{platform}_run"):
-            st.success(f"Starting reconciliation for **{platform}**...")
             
-            # Displaying confirmation of parameters
-            st.markdown("### Input Parameters Confirmed")
-            st.markdown(f"**Sales Data Settings:** Sheet: `{st.session_state[f'{platform}_sales_sheet']}`, Order Col: `{st.session_state[f'{platform}_sales_order_col']}`")
-            st.markdown(f"**Prev Payment Settings:** Sheet: `{st.session_state[f'{platform}_prev_sheet']}`, Order Col: `{st.session_state[f'{platform}_prev_order_col']}`, Payment Col: `{st.session_state[f'{platform}_prev_payment_col']}`")
-            st.markdown(f"**Upcoming Payment Settings:** Sheet: `{st.session_state[f'{platform}_upcoming_sheet']}`, Order Col: `{st.session_state[f'{platform}_upcoming_order_col']}`, Payment Col: `{st.session_state[f'{platform}_upcoming_payment_col']}`")
+            sales_sheet = st.session_state.get(f'{platform}_sales_sheet')
+            sales_order_col = st.session_state.get(f'{platform}_sales_order_col')
+            
+            prev_sheet = st.session_state.get(f'{platform}_prev_payments_sheet')
+            prev_order_col = st.session_state.get(f'{platform}_prev_payments_order_col')
+            prev_payment_col = st.session_state.get(f'{platform}_prev_payments_payment_col')
 
-            # Mock results display
-            st.markdown("### Reconciliation Summary (Mock Data)")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Sales Value", "₹5,00,000")
-            c2.metric("Total Payment Received", "₹4,98,000")
-            c3.metric("Variance (Missing Payment)", "₹2,000", delta="-₹2,000", delta_color="inverse")
-            st.markdown("---")
-            st.info("Reconciliation complete! Actual missing transaction details would be displayed here.")
+            upcoming_sheet = st.session_state.get(f'{platform}_upcoming_payments_sheet')
+            upcoming_order_col = st.session_state.get(f'{platform}_upcoming_payments_order_col')
+            upcoming_payment_col = st.session_state.get(f'{platform}_upcoming_payments_payment_col')
+            
+            # Simple validation check (needs more robust checks in a real application)
+            if sales_order_col == '(Select Column)':
+                st.error("Please ensure you have uploaded the Sales Report and selected the Order ID column.")
+            else:
+                st.success(f"Starting reconciliation for **{platform}**...")
+                
+                # Displaying confirmation of parameters
+                st.markdown("### Input Parameters Confirmed")
+                st.markdown(f"**Sales Data Settings:** Sheet: `{sales_sheet}`, Order Col: `{sales_order_col}`")
+                st.markdown(f"**Prev Payment Settings:** Sheet: `{prev_sheet}`, Order Col: `{prev_order_col}`, Payment Col: `{prev_payment_col}`")
+                st.markdown(f"**Upcoming Payment Settings:** Sheet: `{upcoming_sheet}`, Order Col: `{upcoming_order_col}`, Payment Col: `{upcoming_payment_col}`")
+
+                # Mock results display
+                st.markdown("### Reconciliation Summary (Mock Data)")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Sales Value", "₹5,00,000")
+                c2.metric("Total Payment Received", "₹4,98,000")
+                c3.metric("Variance (Missing Payment)", "₹2,000", delta="-₹2,000", delta_color="inverse")
+                st.markdown("---")
+                st.info("Reconciliation complete! Actual missing transaction details would be displayed here.")
 
     with tab_amz:
         reconciliation_uploader("Amazon")
