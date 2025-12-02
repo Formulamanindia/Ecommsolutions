@@ -51,10 +51,11 @@ CARD_STYLE = """
         font-size: 3em;
         margin-bottom: 10px;
     }
+    /* Custom styling for the Streamlit button widget */
     .stButton>button {
         width: 100%;
         margin-top: auto; /* Push button to the bottom */
-        background-color: #3b82f6;
+        background-color: #3b82f6; /* Custom Blue */
         color: white;
         border-radius: 8px;
         border: none;
@@ -166,121 +167,108 @@ with tab1:
         st.subheader("Select Your Sales Platform & Report Type:")
         st.markdown("Upload your raw sales data from any of the following platforms to generate a GSTR-1 ready report.")
 
-        # --- Functional Buttons (Invisible, used for state change) ---
-        # The buttons must be defined before the HTML to execute the logic first
+        # --- Combined Visual Card and Button Layout (Row 1) ---
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("Import Data for Meesho B2C", key="meesho_b2c"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">🛍️</div>
+                <div class="card-title">Meesho</div>
+                <div class="card-subtitle">B2C</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="meesho_b2c_btn"):
                 st.session_state['selected_platform'] = 'Meesho_B2C'
                 st.rerun()
         
         with col2:
-            if st.button("Import Data for Amazon B2C", key="amazon_b2c"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">🅰️</div>
+                <div class="card-title">Amazon</div>
+                <div class="card-subtitle">B2C</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="amazon_b2c_btn"):
                 st.session_state['selected_platform'] = 'Amazon_B2C'
                 st.info("Amazon specific upload form will appear here soon.")
         
         with col3:
-            if st.button("Import Data for Amazon B2B", key="amazon_b2b"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">🅰️</div>
+                <div class="card-title">Amazon B2B</div>
+                <div class="card-subtitle">B2B</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="amazon_b2b_btn"):
                 st.session_state['selected_platform'] = 'Amazon_B2B'
                 st.info("Amazon B2B specific upload form will appear here soon.")
 
         with col4:
-            if st.button("Import Data for Amazon B2B Bulk", key="amazon_b2b_bulk"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">🅰️</div>
+                <div class="card-title">Amazon B2B</div>
+                <div class="card-subtitle">B2B Bulk Upload</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="amazon_b2b_bulk_btn"):
                 st.session_state['selected_platform'] = 'Amazon_B2B_Bulk'
                 st.info("Amazon B2B Bulk specific upload form will appear here soon.")
 
+        # --- Combined Visual Card and Button Layout (Row 2) ---
         col5, col6, col7, col8 = st.columns(4)
 
         with col5:
-            if st.button("Import Data for Flipkart Sales", key="flipkart_sales"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">📘</div>
+                <div class="card-title">Flipkart</div>
+                <div class="card-subtitle">B2C & B2B Sales Report</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="flipkart_sales_btn"):
                 st.session_state['selected_platform'] = 'Flipkart_Sales'
                 st.info("Flipkart Sales specific upload form will appear here soon.")
         
         with col6:
-            if st.button("Import Data for Flipkart GST", key="flipkart_gst"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">📘</div>
+                <div class="card-title">Flipkart</div>
+                <div class="card-subtitle">GST Report Format</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="flipkart_gst_btn"):
                 st.session_state['selected_platform'] = 'Flipkart_GST'
                 st.info("Flipkart GST specific upload form will appear here soon.")
         
         with col7:
-            if st.button("Import Data for Myntra", key="myntra_report"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">👗</div>
+                <div class="card-title">Myntra / Custom</div>
+                <div class="card-subtitle">General Sales/Return Excel</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="myntra_report_btn"):
                 st.session_state['selected_platform'] = 'Myntra'
                 st.info("Myntra specific upload form will appear here soon.")
                 
         with col8:
-            if st.button("Import Data for Custom Excel", key="custom_excel"):
+            st.markdown("""
+            <div class="platform-card" style="margin-bottom: 10px;">
+                <div class="card-logo">⚙️</div>
+                <div class="card-title">Generic Custom Excel</div>
+                <div class="card-subtitle">For B2C/B2B/Exempt data</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Import Data", key="custom_excel_btn"):
                 st.session_state['selected_platform'] = 'Custom_Excel'
                 st.info("Custom Excel mapping interface will appear here soon.")
-
-
-        # --- Visual Card Layout (HTML) ---
-        # NOTE: The functional buttons above need to be visually aligned with these cards in Streamlit
-        st.markdown("""
-        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">🛍️</div>
-                    <div class="card-title">Meesho</div>
-                    <div class="card-subtitle">B2C</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">🅰️</div>
-                    <div class="card-title">Amazon</div>
-                    <div class="card-subtitle">B2C</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">🅰️</div>
-                    <div class="card-title">Amazon B2B</div>
-                    <div class="card-subtitle">B2B</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">🅰️</div>
-                    <div class="card-title">Amazon B2B</div>
-                    <div class="card-subtitle">B2B Bulk Upload</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
-        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">📘</div>
-                    <div class="card-title">Flipkart</div>
-                    <div class="card-subtitle">B2C & B2B Sales Report</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">📘</div>
-                    <div class="card-title">Flipkart</div>
-                    <div class="card-subtitle">GST Report Format</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">👗</div>
-                    <div class="card-title">Myntra / Custom</div>
-                    <div class="card-subtitle">General Sales/Return Excel</div>
-                </div>
-            </div>
-            <div style="flex: 1;">
-                <div class="platform-card">
-                    <div class="card-logo">⚙️</div>
-                    <div class="card-title">Generic Custom Excel</div>
-                    <div class="card-subtitle">For B2C/B2B/Exempt data</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+                
         st.markdown("---")
 
         # --- General Uploader Section ---
