@@ -452,8 +452,8 @@ with tab4:
         title = f"{report_type} Report: Upload and Define Columns"
         
         # Default hints for manual input
-        sheet_hint = "Sheet1" if report_type == "Sales" else "Sheet1"
-        order_hint = "Order ID" if report_type == "Sales" else "Order ID"
+        sheet_hint = "Sheet1"
+        order_hint = "Order ID"
         payment_hint = "Payment Received"
         
         with st.expander(title, expanded=expanded):
@@ -468,11 +468,11 @@ with tab4:
                 # Dynamic Selectbox (File uploaded and valid Excel)
                 default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata and metadata['default_sheet'] in metadata['sheets'] else 0
                 selected_sheet = st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=f"{sheet_key}_select", index=default_index)
-            elif uploaded_file is None:
-                # Manual Text Input (No file uploaded)
+            elif uploaded_file is None or not metadata['valid']:
+                # Manual Text Input (No file uploaded or error reading file)
                 selected_sheet = st.text_input("Manually Enter Sheet Name (e.g., 'Sheet1')", value=sheet_hint, key=f"{sheet_key}_manual")
             else:
-                 # CSV or Invalid File
+                 # CSV (Single Sheet)
                 selected_sheet = metadata['sheets'][0]
                 st.markdown(f"**Sheet Name:** *({selected_sheet})*")
             
@@ -480,13 +480,21 @@ with tab4:
             st.session_state[sheet_key] = selected_sheet
             
             # --- Column Selection/Manual Input ---
-            col_order, col_payment = st.columns(2 if needs_payment_col else 1)
+            # FIX: Conditionally unpack st.columns based on needs_payment_col
+            if needs_payment_col:
+                col_order, col_payment = st.columns(2)
+            else:
+                # If only 1 column needed, grab the single element from the returned list
+                col_order = st.columns(1)[0]
+                col_payment = None 
             
             # Order ID Column Logic
             with col_order:
                 if metadata['valid']:
                     # Dynamic Selectbox
-                    default_order_idx = metadata['columns'].index(st.session_state.get(order_col_key, '(Select Column)')) if st.session_state.get(order_col_key) in metadata['columns'] else 0
+                    # We check the session state for a previous value to try and pre-select it
+                    previous_value = st.session_state.get(order_col_key, '(Select Column)')
+                    default_order_idx = metadata['columns'].index(previous_value) if previous_value in metadata['columns'] else 0
                     selected_order_col = st.selectbox("Order ID Column", metadata['columns'], key=f"{order_col_key}_select", index=default_order_idx)
                 else:
                     # Manual Text Input
@@ -500,7 +508,8 @@ with tab4:
                 with col_payment:
                     if metadata['valid']:
                         # Dynamic Selectbox
-                        default_payment_idx = metadata['columns'].index(st.session_state.get(payment_col_key, '(Select Column)')) if st.session_state.get(payment_col_key) in metadata['columns'] else 0
+                        previous_value = st.session_state.get(payment_col_key, '(Select Column)')
+                        default_payment_idx = metadata['columns'].index(previous_value) if previous_value in metadata['columns'] else 0
                         selected_payment_col = st.selectbox("Payment Received Column", metadata['columns'], key=f"{payment_col_key}_select", index=default_payment_idx)
                     else:
                         # Manual Text Input
@@ -581,7 +590,7 @@ with tab4:
             col4.metric("Unaccounted Variance", f"₹{abs(variance):,.2f}", delta=f"{'Missing' if variance > 0 else 'Surplus'}", delta_color=delta_color)
 
             st.markdown("---")
-            st.info(f"Reconciliation complete! This process involves a three-way match: Sales Orders vs. Previous Payments vs. Upcoming Payments. ")
+            st.info(f"Reconciliation complete! This process involves a three-way match: Sales Orders vs. Previous Payments vs. Upcoming Payments.")
 
     with tab_amz:
         reconciliation_uploader("Amazon")
