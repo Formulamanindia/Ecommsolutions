@@ -401,24 +401,53 @@ with tab4:
     
     def reconciliation_uploader(platform):
         st.subheader(f"{platform} Reconciliation Files")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("**1. Sales Data**")
+        
+        # 1. Sales Data Upload and Mapping
+        with st.expander("1. Upload Sales Data and Define Columns", expanded=True):
             st.file_uploader(f"Upload {platform} **Sales Report**", key=f"{platform}_sales", type=['xlsx', 'csv'])
-        with col2:
-            st.markdown("**2. Previous Payments**")
+            st.text_input("Excel Sheet Name (e.g., 'Sheet1')", key=f"{platform}_sales_sheet", value="Sheet1")
+            st.text_input("Order ID Column Name (e.g., 'Order_ID')", key=f"{platform}_sales_order_col", placeholder="e.g., Order_ID")
+
+        # 2. Previous Payments Upload and Mapping
+        with st.expander("2. Upload Previous Payments and Define Columns", expanded=False):
             st.file_uploader(f"Upload {platform} **Settlement/Prev Payments**", key=f"{platform}_prev", type=['xlsx', 'csv'])
-        with col3:
-            st.markdown("**3. Upcoming Payments**")
+            st.text_input("Excel Sheet Name (e.g., 'Settlements')", key=f"{platform}_prev_sheet", value="Settlements")
+            col_prev_order, col_prev_payment = st.columns(2)
+            with col_prev_order:
+                st.text_input("Order ID Column Name", key=f"{platform}_prev_order_col", placeholder="e.g., Transaction ID")
+            with col_prev_payment:
+                st.text_input("Payment Received Column Name", key=f"{platform}_prev_payment_col", placeholder="e.g., Settlement Amount")
+
+        # 3. Upcoming Payments Upload and Mapping
+        with st.expander("3. Upload Upcoming Payments and Define Columns", expanded=False):
             st.file_uploader(f"Upload {platform} **Upcoming Payments**", key=f"{platform}_upcoming", type=['xlsx', 'csv'])
+            st.text_input("Excel Sheet Name (e.g., 'Upcoming')", key=f"{platform}_upcoming_sheet", value="Upcoming")
+            col_up_order, col_up_payment = st.columns(2)
+            with col_up_order:
+                st.text_input("Order ID Column Name", key=f"{platform}_upcoming_order_col", placeholder="e.g., Order Reference")
+            with col_up_payment:
+                st.text_input("Payment Received Column Name", key=f"{platform}_upcoming_payment_col", placeholder="e.g., Estimated Payable")
         
         st.divider()
-        if st.button(f"Run {platform} Reconciliation", key=f"{platform}_run"):
-            st.success(f"Reconciliation for **{platform}** complete!")
+        
+        # Run button logic remains the same (mocked)
+        if st.button(f"Run {platform} Reconciliation", type="primary", key=f"{platform}_run"):
+            st.success(f"Starting reconciliation for **{platform}**...")
+            
+            # Displaying confirmation of parameters
+            st.markdown("### Input Parameters Confirmed")
+            st.markdown(f"**Sales Data Settings:** Sheet: `{st.session_state[f'{platform}_sales_sheet']}`, Order Col: `{st.session_state[f'{platform}_sales_order_col']}`")
+            st.markdown(f"**Prev Payment Settings:** Sheet: `{st.session_state[f'{platform}_prev_sheet']}`, Order Col: `{st.session_state[f'{platform}_prev_order_col']}`, Payment Col: `{st.session_state[f'{platform}_prev_payment_col']}`")
+            st.markdown(f"**Upcoming Payment Settings:** Sheet: `{st.session_state[f'{platform}_upcoming_sheet']}`, Order Col: `{st.session_state[f'{platform}_upcoming_order_col']}`, Payment Col: `{st.session_state[f'{platform}_upcoming_payment_col']}`")
+
+            # Mock results display
             st.markdown("### Reconciliation Summary (Mock Data)")
             c1, c2, c3 = st.columns(3)
             c1.metric("Total Sales Value", "₹5,00,000")
+            c2.metric("Total Payment Received", "₹4,98,000")
             c3.metric("Variance (Missing Payment)", "₹2,000", delta="-₹2,000", delta_color="inverse")
+            st.markdown("---")
+            st.info("Reconciliation complete! Actual missing transaction details would be displayed here.")
 
     with tab_amz:
         reconciliation_uploader("Amazon")
