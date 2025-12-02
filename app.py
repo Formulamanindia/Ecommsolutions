@@ -398,7 +398,8 @@ def get_file_metadata(uploaded_file, file_key):
     Uses st.cache_data to speed up subsequent runs with the same file.
     """
     if uploaded_file is None:
-        return {'sheets': ['(Upload File First)'], 'columns': ['(Upload File First)']}
+        # Return default placeholders when no file is uploaded
+        return {'sheets': ['(No File Uploaded)'], 'columns': ['(No File Uploaded)'], 'valid': False}
     
     # Reset file pointer to the beginning for fresh reading
     uploaded_file.seek(0)
@@ -413,23 +414,22 @@ def get_file_metadata(uploaded_file, file_key):
             df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0])
             columns = ['(Select Column)'] + df.columns.astype(str).tolist() # Convert headers to string
             
-            # Use 'default_sheet' to hold the first sheet name for default selection
-            return {'sheets': sheet_names, 'columns': columns, 'default_sheet': sheet_names[0]}
+            return {'sheets': sheet_names, 'columns': columns, 'default_sheet': sheet_names[0], 'valid': True}
         except Exception as e:
             st.error(f"Error reading Excel sheets for {uploaded_file.name}: {e}")
-            return {'sheets': ['(Error Reading Sheets)'], 'columns': ['(Error Reading Sheets)']}
+            return {'sheets': ['(Error Reading Sheets)'], 'columns': ['(Error Reading Sheets)'], 'valid': False}
     
     elif uploaded_file.name.endswith('.csv'):
         try:
             df = pd.read_csv(uploaded_file)
             columns = ['(Select Column)'] + df.columns.astype(str).tolist() # Convert headers to string
-            return {'sheets': ['Single Sheet'], 'columns': columns, 'default_sheet': 'Single Sheet'}
+            return {'sheets': ['Single Sheet'], 'columns': columns, 'default_sheet': 'Single Sheet', 'valid': True}
         except Exception as e:
             st.error(f"Error reading CSV file {uploaded_file.name}: {e}")
-            return {'sheets': ['(Error Reading CSV)'], 'columns': ['(Error Reading CSV)']}
+            return {'sheets': ['(Error Reading CSV)'], 'columns': ['(Error Reading CSV)'], 'valid': False}
 
     else:
-        return {'sheets': ['Unsupported File'], 'columns': ['Unsupported File']}
+        return {'sheets': ['Unsupported File'], 'columns': ['Unsupported File'], 'valid': False}
 
 # ====================================================================
 # --- TAB 4: PAYMENT RECONCILIATION ---
@@ -451,6 +451,11 @@ with tab4:
         # Set up expander title
         title = f"{report_type} Report: Upload and Define Columns"
         
+        # Default hints for manual input
+        sheet_hint = "Sheet1" if report_type == "Sales" else "Sheet1"
+        order_hint = "Order ID" if report_type == "Sales" else "Order ID"
+        payment_hint = "Payment Received"
+        
         with st.expander(title, expanded=expanded):
             
             # 1. File Uploader
@@ -458,42 +463,57 @@ with tab4:
 
             metadata = get_file_metadata(uploaded_file, file_key)
 
-            # Initialize states if not present
-            if sheet_key not in st.session_state: st.session_state[sheet_key] = metadata['sheets'][0] if metadata['sheets'][0] != '(Upload File First)' else '(Select Sheet)'
-            if order_col_key not in st.session_state: st.session_state[order_col_key] = metadata['columns'][0]
-            if payment_col_key not in st.session_state: st.session_state[payment_col_key] = metadata['columns'][0]
-            
-            
-            if uploaded_file and metadata['columns'][0] != '(Upload File First)':
-                
-                # 2. Dynamic Sheet Selection (only for Excel files)
-                if uploaded_file.name.endswith('.xlsx'):
-                    try:
-                        # Use the default sheet name from metadata to select initial index
-                        default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata and metadata['default_sheet'] in metadata['sheets'] else 0
-                        st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=default_index)
-                    except ValueError:
-                         # Fallback index
-                        st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=0)
-                else:
-                    st.markdown(f"**Sheet Name:** *({metadata['sheets'][0]})*")
-
-                # 3. Dynamic Column Selection
-                col_order, col_payment = st.columns(2 if needs_payment_col else 1)
-                
-                # Find index for placeholder or current value
-                default_order_idx = metadata['columns'].index(st.session_state[order_col_key]) if st.session_state[order_col_key] in metadata['columns'] else 0
-                
-                with col_order:
-                    st.selectbox("Order ID Column", metadata['columns'], key=order_col_key, index=default_order_idx)
-                
-                if needs_payment_col:
-                    # Find index for placeholder or current value
-                    default_payment_idx = metadata['columns'].index(st.session_state[payment_col_key]) if st.session_state[payment_col_key] in metadata['columns'] else 0
-                    with col_payment:
-                        st.selectbox("Payment Received Column", metadata['columns'], key=payment_col_key, index=default_payment_idx)
+            # --- Sheet Selection/Manual Input ---
+            if metadata['valid'] and uploaded_file.name.endswith('.xlsx'):
+                # Dynamic Selectbox (File uploaded and valid Excel)
+                default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata and metadata['default_sheet'] in metadata['sheets'] else 0
+                selected_sheet = st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=f"{sheet_key}_select", index=default_index)
+            elif uploaded_file is None:
+                # Manual Text Input (No file uploaded)
+                selected_sheet = st.text_input("Manually Enter Sheet Name (e.g., 'Sheet1')", value=sheet_hint, key=f"{sheet_key}_manual")
             else:
-                st.info("Upload an Excel or CSV file above to see sheet and column options.")
+                 # CSV or Invalid File
+                selected_sheet = metadata['sheets'][0]
+                st.markdown(f"**Sheet Name:** *({selected_sheet})*")
+            
+            # Store the final selected sheet name in session state
+            st.session_state[sheet_key] = selected_sheet
+            
+            # --- Column Selection/Manual Input ---
+            col_order, col_payment = st.columns(2 if needs_payment_col else 1)
+            
+            # Order ID Column Logic
+            with col_order:
+                if metadata['valid']:
+                    # Dynamic Selectbox
+                    default_order_idx = metadata['columns'].index(st.session_state.get(order_col_key, '(Select Column)')) if st.session_state.get(order_col_key) in metadata['columns'] else 0
+                    selected_order_col = st.selectbox("Order ID Column", metadata['columns'], key=f"{order_col_key}_select", index=default_order_idx)
+                else:
+                    # Manual Text Input
+                    selected_order_col = st.text_input("Manually Enter Order ID Column", value=order_hint, key=f"{order_col_key}_manual")
+            
+            # Store the final selected order column name
+            st.session_state[order_col_key] = selected_order_col
+
+            # Payment Received Column Logic (if required)
+            if needs_payment_col:
+                with col_payment:
+                    if metadata['valid']:
+                        # Dynamic Selectbox
+                        default_payment_idx = metadata['columns'].index(st.session_state.get(payment_col_key, '(Select Column)')) if st.session_state.get(payment_col_key) in metadata['columns'] else 0
+                        selected_payment_col = st.selectbox("Payment Received Column", metadata['columns'], key=f"{payment_col_key}_select", index=default_payment_idx)
+                    else:
+                        # Manual Text Input
+                        selected_payment_col = st.text_input("Manually Enter Payment Column", value=payment_hint, key=f"{payment_col_key}_manual")
+
+                # Store the final selected payment column name
+                st.session_state[payment_col_key] = selected_payment_col
+            else:
+                # Ensure payment column is marked as not needed
+                st.session_state[payment_col_key] = "N/A" # Default for reports without payment data
+
+            if not metadata['valid'] and uploaded_file is not None:
+                st.warning("Could not read file headers. Please manually enter the sheet/column names.")
 
 
     def reconciliation_uploader(platform):
@@ -517,13 +537,14 @@ with tab4:
             sales_order_col = st.session_state.get(f'{platform}_sales_order_col')
             
             # Check for minimum required selection (Sales Order Col)
-            if sales_order_col == '(Select Column)' or sales_order_col == '(Upload File First)':
-                st.error("Please ensure you have uploaded the Sales Report and selected the Order ID column.")
+            if not sales_order_col or sales_order_col in ['(Select Column)', '(No File Uploaded)']:
+                st.error("Please ensure you have provided a valid Order ID column name for the Sales Report.")
                 return # Stop processing
             
             st.success(f"Starting reconciliation for **{platform}**...")
             
             # --- MOCK DATA SIMULATION ---
+            # In a real application, you would load the DataFrames and merge/join them using the specified columns.
             
             # 1. Total Sales Value (based on Sales sheet orders)
             total_sales_value = 100000.00 # Mock value in Rupees
@@ -544,14 +565,9 @@ with tab4:
             
             # Displaying confirmation of parameters used in the mock calculation
             with st.expander("Show Mappings Used for Calculation", expanded=False):
-                st.markdown(f"**Sales Data Order Col:** `{sales_order_col}` (Used to define the universe of orders)")
-                st.markdown(f"**Prev Payment Sheet:** `{st.session_state.get(f'{platform}_prev_payments_sheet')}`")
-                st.markdown(f"**Prev Payment Order Col:** `{st.session_state.get(f'{platform}_prev_payments_order_col')}`")
-                st.markdown(f"**Prev Payment Amount Col:** `{st.session_state.get(f'{platform}_prev_payments_payment_col')}`")
-                st.markdown(f"**Upcoming Payment Sheet:** `{st.session_state.get(f'{platform}_upcoming_payments_sheet')}`")
-                st.markdown(f"**Upcoming Payment Order Col:** `{st.session_state.get(f'{platform}_upcoming_payments_order_col')}`")
-                st.markdown(f"**Upcoming Payment Amount Col:** `{st.session_state.get(f'{platform}_upcoming_payments_payment_col')}`")
-
+                st.markdown(f"**Sales Data:** Sheet: `{st.session_state.get(f'{platform}_sales_sheet')}`, Order Col: `{sales_order_col}`")
+                st.markdown(f"**Prev Payment:** Sheet: `{st.session_state.get(f'{platform}_prev_payments_sheet')}`, Order Col: `{st.session_state.get(f'{platform}_prev_payments_order_col')}`, Payment Col: `{st.session_state.get(f'{platform}_prev_payments_payment_col')}`")
+                st.markdown(f"**Upcoming Payment:** Sheet: `{st.session_state.get(f'{platform}_upcoming_payments_sheet')}`, Order Col: `{st.session_state.get(f'{platform}_upcoming_payments_order_col')}`, Payment Col: `{st.session_state.get(f'{platform}_upcoming_payments_payment_col')}`")
 
             # Primary Metrics Display
             col1, col2, col3, col4 = st.columns(4)
@@ -565,7 +581,7 @@ with tab4:
             col4.metric("Unaccounted Variance", f"₹{abs(variance):,.2f}", delta=f"{'Missing' if variance > 0 else 'Surplus'}", delta_color=delta_color)
 
             st.markdown("---")
-            st.info(f"Reconciliation complete! Out of ₹{total_sales_value:,.2f} of sales, ₹{received_payment:,.2f} has been settled and ₹{upcoming_payment:,.2f} is expected to be settled. The net variance is ₹{variance:,.2f}.")
+            st.info(f"Reconciliation complete! This process involves a three-way match: Sales Orders vs. Previous Payments vs. Upcoming Payments. ")
 
     with tab_amz:
         reconciliation_uploader("Amazon")
