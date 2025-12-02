@@ -411,8 +411,9 @@ def get_file_metadata(uploaded_file, file_key):
             
             # Read the first sheet to get column names
             df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0])
-            columns = ['(Select Column)'] + df.columns.tolist()
-
+            columns = ['(Select Column)'] + df.columns.astype(str).tolist() # Convert headers to string
+            
+            # Use 'default_sheet' to hold the first sheet name for default selection
             return {'sheets': sheet_names, 'columns': columns, 'default_sheet': sheet_names[0]}
         except Exception as e:
             st.error(f"Error reading Excel sheets for {uploaded_file.name}: {e}")
@@ -421,7 +422,7 @@ def get_file_metadata(uploaded_file, file_key):
     elif uploaded_file.name.endswith('.csv'):
         try:
             df = pd.read_csv(uploaded_file)
-            columns = ['(Select Column)'] + df.columns.tolist()
+            columns = ['(Select Column)'] + df.columns.astype(str).tolist() # Convert headers to string
             return {'sheets': ['Single Sheet'], 'columns': columns, 'default_sheet': 'Single Sheet'}
         except Exception as e:
             st.error(f"Error reading CSV file {uploaded_file.name}: {e}")
@@ -469,10 +470,10 @@ with tab4:
                 if uploaded_file.name.endswith('.xlsx'):
                     try:
                         # Use the default sheet name from metadata to select initial index
-                        default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata else 0
+                        default_index = metadata['sheets'].index(metadata['default_sheet']) if 'default_sheet' in metadata and metadata['default_sheet'] in metadata['sheets'] else 0
                         st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=default_index)
                     except ValueError:
-                         # Fallback if default sheet name isn't in the list (shouldn't happen with correct logic)
+                         # Fallback index
                         st.selectbox("Select Excel Sheet Name", metadata['sheets'], key=sheet_key, index=0)
                 else:
                     st.markdown(f"**Sheet Name:** *({metadata['sheets'][0]})*")
@@ -480,14 +481,14 @@ with tab4:
                 # 3. Dynamic Column Selection
                 col_order, col_payment = st.columns(2 if needs_payment_col else 1)
                 
-                # Find index for 'Order ID' placeholder
+                # Find index for placeholder or current value
                 default_order_idx = metadata['columns'].index(st.session_state[order_col_key]) if st.session_state[order_col_key] in metadata['columns'] else 0
                 
                 with col_order:
                     st.selectbox("Order ID Column", metadata['columns'], key=order_col_key, index=default_order_idx)
                 
                 if needs_payment_col:
-                    # Find index for 'Payment Col' placeholder
+                    # Find index for placeholder or current value
                     default_payment_idx = metadata['columns'].index(st.session_state[payment_col_key]) if st.session_state[payment_col_key] in metadata['columns'] else 0
                     with col_payment:
                         st.selectbox("Payment Received Column", metadata['columns'], key=payment_col_key, index=default_payment_idx)
@@ -510,41 +511,61 @@ with tab4:
         st.divider()
         
         # --- Run Logic ---
-        # NOTE: The keys are structured as f"{platform}_{report_type.lower()}_[sheet/order_col/payment_col]"
         
         if st.button(f"Run {platform} Reconciliation", type="primary", key=f"{platform}_run"):
             
-            sales_sheet = st.session_state.get(f'{platform}_sales_sheet')
             sales_order_col = st.session_state.get(f'{platform}_sales_order_col')
             
-            prev_sheet = st.session_state.get(f'{platform}_prev_payments_sheet')
-            prev_order_col = st.session_state.get(f'{platform}_prev_payments_order_col')
-            prev_payment_col = st.session_state.get(f'{platform}_prev_payments_payment_col')
-
-            upcoming_sheet = st.session_state.get(f'{platform}_upcoming_payments_sheet')
-            upcoming_order_col = st.session_state.get(f'{platform}_upcoming_payments_order_col')
-            upcoming_payment_col = st.session_state.get(f'{platform}_upcoming_payments_payment_col')
-            
-            # Simple validation check (needs more robust checks in a real application)
-            if sales_order_col == '(Select Column)':
+            # Check for minimum required selection (Sales Order Col)
+            if sales_order_col == '(Select Column)' or sales_order_col == '(Upload File First)':
                 st.error("Please ensure you have uploaded the Sales Report and selected the Order ID column.")
-            else:
-                st.success(f"Starting reconciliation for **{platform}**...")
-                
-                # Displaying confirmation of parameters
-                st.markdown("### Input Parameters Confirmed")
-                st.markdown(f"**Sales Data Settings:** Sheet: `{sales_sheet}`, Order Col: `{sales_order_col}`")
-                st.markdown(f"**Prev Payment Settings:** Sheet: `{prev_sheet}`, Order Col: `{prev_order_col}`, Payment Col: `{prev_payment_col}`")
-                st.markdown(f"**Upcoming Payment Settings:** Sheet: `{upcoming_sheet}`, Order Col: `{upcoming_order_col}`, Payment Col: `{upcoming_payment_col}`")
+                return # Stop processing
+            
+            st.success(f"Starting reconciliation for **{platform}**...")
+            
+            # --- MOCK DATA SIMULATION ---
+            
+            # 1. Total Sales Value (based on Sales sheet orders)
+            total_sales_value = 100000.00 # Mock value in Rupees
+            
+            # 2. Payment Received (Matched Orders between Sales and Prev Payments)
+            received_payment = 95000.00 # Mock value in Rupees
+            
+            # 3. Upcoming Payment (Matched Orders between Sales and Upcoming Payments)
+            upcoming_payment = 4000.00 # Mock value in Rupees
+            
+            # 4. Variance Calculation
+            accounted_payment = received_payment + upcoming_payment
+            variance = total_sales_value - accounted_payment
+            
+            # --- DISPLAY RESULTS ---
+            
+            st.markdown("### Reconciliation Summary")
+            
+            # Displaying confirmation of parameters used in the mock calculation
+            with st.expander("Show Mappings Used for Calculation", expanded=False):
+                st.markdown(f"**Sales Data Order Col:** `{sales_order_col}` (Used to define the universe of orders)")
+                st.markdown(f"**Prev Payment Sheet:** `{st.session_state.get(f'{platform}_prev_payments_sheet')}`")
+                st.markdown(f"**Prev Payment Order Col:** `{st.session_state.get(f'{platform}_prev_payments_order_col')}`")
+                st.markdown(f"**Prev Payment Amount Col:** `{st.session_state.get(f'{platform}_prev_payments_payment_col')}`")
+                st.markdown(f"**Upcoming Payment Sheet:** `{st.session_state.get(f'{platform}_upcoming_payments_sheet')}`")
+                st.markdown(f"**Upcoming Payment Order Col:** `{st.session_state.get(f'{platform}_upcoming_payments_order_col')}`")
+                st.markdown(f"**Upcoming Payment Amount Col:** `{st.session_state.get(f'{platform}_upcoming_payments_payment_col')}`")
 
-                # Mock results display
-                st.markdown("### Reconciliation Summary (Mock Data)")
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Total Sales Value", "₹5,00,000")
-                c2.metric("Total Payment Received", "₹4,98,000")
-                c3.metric("Variance (Missing Payment)", "₹2,000", delta="-₹2,000", delta_color="inverse")
-                st.markdown("---")
-                st.info("Reconciliation complete! Actual missing transaction details would be displayed here.")
+
+            # Primary Metrics Display
+            col1, col2, col3, col4 = st.columns(4)
+            
+            col1.metric("Total Sales Value (Sales Sheet)", f"₹{total_sales_value:,.2f}")
+            col2.metric("Payment Received (Prev Payments)", f"₹{received_payment:,.2f}")
+            col3.metric("Payment Expected (Upcoming Payments)", f"₹{upcoming_payment:,.2f}")
+
+            # Variance Metric
+            delta_color = "inverse" if variance > 0 else "normal" # Red if missing payment (positive variance), Green if over-accounted (negative variance)
+            col4.metric("Unaccounted Variance", f"₹{abs(variance):,.2f}", delta=f"{'Missing' if variance > 0 else 'Surplus'}", delta_color=delta_color)
+
+            st.markdown("---")
+            st.info(f"Reconciliation complete! Out of ₹{total_sales_value:,.2f} of sales, ₹{received_payment:,.2f} has been settled and ₹{upcoming_payment:,.2f} is expected to be settled. The net variance is ₹{variance:,.2f}.")
 
     with tab_amz:
         reconciliation_uploader("Amazon")
