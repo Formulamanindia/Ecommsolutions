@@ -3,97 +3,149 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 
-# --- Page Configuration ---
-st.set_page_config(page_title="E-Com Service Hub", layout="wide")
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="E-Commerce Solutions Hub",
+    page_icon="📦",
+    layout="wide"
+)
 
-st.title("🛍️ E-Commerce Service Assistant")
-st.markdown("Automated solutions for Sellers: GST, Analytics, and Optimization.")
+# --- HEADER ---
+st.title("🚀 E-Commerce Service Hub")
+st.markdown("One-stop solution for GST Filing, Analytics, and Listing Optimization.")
 
-# --- Sidebar Navigation ---
-menu = ["Sales Analysis", "GST Report Generator", "Return Analysis"]
-choice = st.sidebar.selectbox("Select Service", menu)
+# --- TABS CONFIGURATION ---
+# We define the tabs here. You can add more as your services grow.
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📑 GST Filing", 
+    "📈 Sales Analysis", 
+    "↩️ Return Analysis", 
+    "✍️ Listing Optimization", 
+    "📢 Ads Manager"
+])
 
-# --- HELPER FUNCTION: Convert DF to Excel for Download ---
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    processed_data = output.getvalue()
-    return processed_data
+# --- TAB 1: GST FILING SERVICES ---
+with tab1:
+    st.header("GST Compliance & Filing")
+    
+    # Sub-service selection within the GST tab
+    gst_service = st.radio(
+        "Select Report Type:",
+        ["GSTR-1 (Sales)", "GSTR-3B (Summary)", "GSTR-2A/2B (Reconciliation)"],
+        horizontal=True
+    )
+    
+    st.info(f"Upload your raw sales report to generate the **{gst_service}** JSON/Excel.")
+    
+    uploaded_gst = st.file_uploader("Upload Sales Excel/CSV", type=['xlsx', 'csv'], key="gst_file")
+    
+    if uploaded_gst:
+        # Placeholder for data processing
+        st.success("File uploaded successfully! Processing tax logic...")
+        
+        # Logic: In a real app, you would load this into Pandas and apply tax rules
+        # df = pd.read_excel(uploaded_gst)
+        # processed_df = apply_gst_logic(df) 
+        
+        st.write("Preview of Generated Report:")
+        # Mock dataframe for visualization
+        mock_data = pd.DataFrame({
+            'Invoice No': ['INV001', 'INV002'], 
+            'Taxable Value': [1000, 2500], 
+            'IGST': [180, 0], 
+            'CGST': [0, 225], 
+            'SGST': [0, 225]
+        })
+        st.dataframe(mock_data)
+        
+        st.download_button("⬇️ Download GSTR Report", data="mock_data", file_name="GSTR_Report.csv")
 
-# --- MODULE 1: SALES ANALYSIS ---
-if choice == "Sales Analysis":
-    st.subheader("📊 Sales Data Insights")
-    uploaded_file = st.file_uploader("Upload Amazon/Flipkart Sales Report (Excel)", type=["xlsx", "csv"])
+# --- TAB 2: SALES ANALYSIS ---
+with tab2:
+    st.header("📊 Sales Performance Analytics")
+    
+    uploaded_sales = st.file_uploader("Upload Sales Report for Analysis", type=['xlsx', 'csv'], key="sales_file")
+    
+    if uploaded_sales:
+        # Load Data
+        if uploaded_sales.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_sales)
+        else:
+            df = pd.read_excel(uploaded_sales)
+            
+        # Try to identify Date and Amount columns automatically
+        # (You will need to standardize column names in production)
+        st.subheader("Key Metrics")
+        col1, col2, col3 = st.columns(3)
+        
+        col1.metric("Total Orders", len(df))
+        # Mock calculation - assumes a column named 'Amount' exists
+        if 'Amount' in df.columns:
+            total_rev = df['Amount'].sum()
+            col2.metric("Total Revenue", f"₹{total_rev:,.2f}")
+            col3.metric("Avg Order Value", f"₹{total_rev/len(df):,.0f}")
+            
+            st.divider()
+            
+            # Interactive Charts
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("Revenue Trend")
+                fig_line = px.line(df, y='Amount', title="Sales Over Time")
+                st.plotly_chart(fig_line, use_container_width=True)
+            with c2:
+                st.subheader("State-wise Sales")
+                if 'State' in df.columns:
+                    state_counts = df['State'].value_counts()
+                    fig_pie = px.pie(values=state_counts, names=state_counts.index, title="Orders by Region")
+                    st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.warning("Column 'Amount' not found. Please upload a standardized file.")
 
-    if uploaded_file:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+# --- TAB 3: RETURN ANALYSIS ---
+with tab3:
+    st.header("↩️ Return & Refund Analysis")
+    st.write("Identify top returned SKUs and reasons to reduce losses.")
+    
+    # Example Layout for this tab
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.selectbox("Select Platform", ["Amazon", "Flipkart", "Meesho"])
+        st.file_uploader("Upload Returns Report", key="return_file")
+        
+    with col2:
+        # Mock UI element
+        st.info("Upload data to see Return Rate % and Top Return Reasons")
+
+# --- TAB 4: LISTING OPTIMIZATION ---
+with tab4:
+    st.header("✍️ Listing Optimization Tool")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        current_title = st.text_area("Current Product Title", height=100)
+        keywords = st.text_input("Target Keywords (comma separated)")
+        if st.button("Optimize Title"):
+            # Simple string logic for demo (Use OpenAI API here for real AI)
+            if current_title and keywords:
+                st.success("Generated Title Idea:")
+                st.code(f"{keywords.split(',')[0].upper()} - {current_title} | Premium Quality")
             else:
-                df = pd.read_excel(uploaded_file)
-            
-            # Basic KPI Display
-            # Assuming column names 'Date', 'Order Amount', 'State' exist (You must standardize this)
-            col1, col2 = st.columns(2)
-            col1.metric("Total Rows", len(df))
-            
-            # Check if we can find a generic amount column for demo
-            possible_amount_cols = [c for c in df.columns if 'amount' in c.lower() or 'price' in c.lower()]
-            if possible_amount_cols:
-                total_sales = df[possible_amount_cols[0]].sum()
-                col2.metric("Total Revenue", f"₹{total_sales:,.2f}")
+                st.error("Please enter title and keywords.")
                 
-                # Chart
-                st.write("### Sales Distribution")
-                fig = px.bar(df, x=df.columns[0], y=possible_amount_cols[0], title="Sales Overview")
-                st.plotly_chart(fig)
-            else:
-                st.warning("Could not automatically detect an 'Amount' column. Please check column names.")
+    with col2:
+        st.info("Tips for Optimization:")
+        st.markdown("""
+        * Keep title length under 200 chars.
+        * Use main keywords in the first 60 chars.
+        * Mention material and dimensions.
+        """)
 
-            st.dataframe(df.head())
-
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-
-# --- MODULE 2: GST GENERATOR ---
-elif choice == "GST Report Generator":
-    st.subheader("🧾 GSTR1 Data Preparation")
-    st.info("Upload your raw sales report to generate a format suitable for GST filing.")
-    
-    gst_file = st.file_uploader("Upload Sales Data", key="gst_uploader")
-    
-    if gst_file:
-        df = pd.read_excel(gst_file) # Assuming Excel
-        
-        # --- LOGIC SIMULATION ---
-        # Real GST logic is complex. This is a placeholder example.
-        # 1. Filter out Cancelled orders
-        # 2. Separate IGST, CGST, SGST based on State
-        
-        st.write("Processing data for GSTR1...")
-        
-        # Create a simplified output dataframe
-        gst_output = df.copy()
-        
-        # Example transformation: Add a 'Place of Supply' column if missing
-        if 'State' in gst_output.columns:
-            gst_output['Place of Supply'] = gst_output['State']
-            
-        st.success("GSTR1 Draft Generated!")
-        st.dataframe(gst_output.head())
-        
-        # Download Button
-        excel_data = to_excel(gst_output)
-        st.download_button(
-            label="📥 Download GSTR1 Excel",
-            data=excel_data,
-            file_name="GSTR1_Ready_File.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-# --- MODULE 3: RETURN ANALYSIS ---
-elif choice == "Return Analysis":
-    st.subheader("↩️ Return Analysis")
-    st.write("Upload return reports to analyze return reasons and top returning SKUs.")
-    # Similar logic to Sales Analysis
+# --- TAB 5: ADS OPTIMIZATION ---
+with tab5:
+    st.header("📢 Ads Performance Manager")
+    st.write("Analyze ACOS (Advertising Cost of Sales) and ROAS.")
+    # Placeholder for future logic
+    st.warning("This module is under development.")
